@@ -5,9 +5,6 @@ A plugin that blocks websites and IP addresses (name + chat), with a configurabl
 ## Config
 The configuration file will be automatically generated in `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`
 ```json
-## Конфигурация
-Файл конфигурации будет автоматически сгенерирован в `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`
-```json
 {
   "whitelist": [
     "1.1.1.1"
@@ -16,7 +13,7 @@ The configuration file will be automatically generated in `csgo/addons/counterst
   "name_action": 1,
   "rename_message": "{darkred}Your name contains a blocked IP address or website. It will be renamed.",
   "admin_immunity": 0,
-  "ConfigVersion": 1
+  "ConfigVersion": 3
 }
 ```
 
@@ -44,4 +41,3 @@ The configuration file will be automatically generated in `csgo/addons/counterst
 {lightred}
 {orange}
 ```
-
