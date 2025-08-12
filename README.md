@@ -13,7 +13,7 @@ The configuration file will be automatically generated in `csgo/addons/counterst
   "name_action": 1,
   "rename_message": "{darkred}Your name contains a blocked IP address or website. It will be renamed.",
   "admin_immunity": 0,
-  "ConfigVersion": 3
+  "ConfigVersion": 1
 }
 ```
 
