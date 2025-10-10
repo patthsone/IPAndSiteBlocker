@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPAndSiteBlocker", "IPAndSiteBlocker.csproj", "{8009378A-0EB8-A278-10FE-8EAC8E972347}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8009378A-0EB8-A278-10FE-8EAC8E972347}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8009378A-0EB8-A278-10FE-8EAC8E972347}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8009378A-0EB8-A278-10FE-8EAC8E972347}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8009378A-0EB8-A278-10FE-8EAC8E972347}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {86A8AFCB-60A1-45EB-94EE-42681391E64B}
+	EndGlobalSection
+EndGlobal
