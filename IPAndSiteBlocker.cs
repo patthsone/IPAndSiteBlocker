@@ -35,9 +35,9 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
 
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
-    public override string ModuleName => "Site and IP Blocker";
-    public override string ModuleVersion => "0.0.1";
-    public override string ModuleAuthor => "PattHs and Luxecs2";
+    public override string ModuleName => "IPAndSiteBlocker";
+    public override string ModuleVersion => "0.0.2";
+    public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков.";
 
     public SiteAndIPBlockerConfig Config { get; set; } = null!;
@@ -55,20 +55,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private static readonly List<string> CommonDomains = new List<string>
     {
-        ".com",
-        ".net",
-        ".org",
-        ".info",
-        ".biz",
-        ".us",
-        ".ru",
-        ".online",
-        ".su",
-        ".co",
-        ".io",
-        ".me",
-        ".tv",
-        ".edu"
+        ".com", ".net", ".org", ".info", ".biz", ".us", ".ru",
+        ".online", ".su", ".co", ".io", ".me", ".tv", ".edu"
     };
 
     private void UpdateConfig<T>(T config) where T : BasePluginConfig, new()
@@ -94,46 +82,34 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private static readonly Dictionary<string, char> ColorMap = new Dictionary<string, char>
     {
-        { "{default}", ChatColors.Default },
-        { "{white}", ChatColors.White },
-        { "{darkred}", ChatColors.DarkRed },
-        { "{green}", ChatColors.Green },
-        { "{lightyellow}", ChatColors.LightYellow },
-        { "{lightblue}", ChatColors.LightBlue },
-        { "{olive}", ChatColors.Olive },
-        { "{lime}", ChatColors.Lime },
-        { "{red}", ChatColors.Red },
-        { "{lightpurple}", ChatColors.LightPurple },
-        { "{purple}", ChatColors.Purple },
-        { "{grey}", ChatColors.Grey },
-        { "{yellow}", ChatColors.Yellow },
-        { "{gold}", ChatColors.Gold },
-        { "{silver}", ChatColors.Silver },
-        { "{blue}", ChatColors.Blue },
-        { "{darkblue}", ChatColors.DarkBlue },
-        { "{bluegrey}", ChatColors.BlueGrey },
-        { "{magenta}", ChatColors.Magenta },
-        { "{lightred}", ChatColors.LightRed },
+        { "{default}", ChatColors.Default }, { "{white}", ChatColors.White },
+        { "{darkred}", ChatColors.DarkRed }, { "{green}", ChatColors.Green },
+        { "{lightyellow}", ChatColors.LightYellow }, { "{lightblue}", ChatColors.LightBlue },
+        { "{olive}", ChatColors.Olive }, { "{lime}", ChatColors.Lime },
+        { "{red}", ChatColors.Red }, { "{lightpurple}", ChatColors.LightPurple },
+        { "{purple}", ChatColors.Purple }, { "{grey}", ChatColors.Grey },
+        { "{yellow}", ChatColors.Yellow }, { "{gold}", ChatColors.Gold },
+        { "{silver}", ChatColors.Silver }, { "{blue}", ChatColors.Blue },
+        { "{darkblue}", ChatColors.DarkBlue }, { "{bluegrey}", ChatColors.BlueGrey },
+        { "{magenta}", ChatColors.Magenta }, { "{lightred}", ChatColors.LightRed },
         { "{orange}", ChatColors.Orange }
     };
 
     private string ReplaceColorPlaceholders(string message)
     {
         if (!string.IsNullOrEmpty(message) && message[0] != ' ')
-        {
             message = " " + message;
-        }
         
         foreach (var colorPlaceholder in ColorMap)
-        {
             message = message.Replace(colorPlaceholder.Key, colorPlaceholder.Value.ToString());
-        }
+        
         return message;
     }
 
     private bool ContainsUrlOrIp(string message)
     {
-        return UrlOrIpRegex.IsMatch(message) || CommonDomains.Any(domain => message.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0);
+        return UrlOrIpRegex.IsMatch(message) || 
+               CommonDomains.Any(domain => message.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private string CleanName(string name)
@@ -141,11 +117,40 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         name = UrlOrIpRegex.Replace(name, "");
         
         foreach (var domain in CommonDomains)
-        {
             name = Regex.Replace(name, $@"\b\w+{Regex.Escape(domain)}\b", "", RegexOptions.IgnoreCase);
-        }
 
         return name.Trim();
+    }
+
+    private bool IsWhitelisted(string message)
+    {
+        string lowerCaseMessage = message.ToLowerInvariant();
+
+        // Проверка точного совпадения для IP-адресов
+        if (UrlOrIpRegex.IsMatch(message))
+        {
+            return Config.Whitelist.Any(whitelistedItem => 
+                lowerCaseMessage.Equals(whitelistedItem.ToLowerInvariant()));
+        }
+
+        // Проверка доменов в тексте
+        foreach (var domain in CommonDomains)
+        {
+            if (lowerCaseMessage.Contains(domain))
+            {
+                var domainMatches = Regex.Matches(lowerCaseMessage, $@"\b\w+{Regex.Escape(domain)}\b");
+                foreach (Match match in domainMatches)
+                {
+                    if (Config.Whitelist.Any(whitelistedItem => 
+                        match.Value.Equals(whitelistedItem.ToLowerInvariant())))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private HookResult OnPlayerChatAll(CCSPlayerController? player, CommandInfo message)
@@ -154,21 +159,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             return HookResult.Handled;
 
         if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
-        {
             return HookResult.Continue;
-        }
 
         string chatMessage = message.GetArg(1);
 
-        if (ContainsUrlOrIp(chatMessage))
+        if (ContainsUrlOrIp(chatMessage) && !IsWhitelisted(chatMessage))
         {
-            if (!IsWhitelisted(chatMessage))
-            {
-                string blockMessage = ReplaceColorPlaceholders(Config.BlockMessage);
-                
-                player.PrintToChat(blockMessage);
-                return HookResult.Handled;
-            }
+            player.PrintToChat(ReplaceColorPlaceholders(Config.BlockMessage));
+            return HookResult.Handled;
         }
 
         return HookResult.Continue;
@@ -180,21 +178,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             return HookResult.Handled;
 
         if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
-        {
             return HookResult.Continue;
-        }
 
         string chatMessage = message.GetArg(1);
 
-        if (ContainsUrlOrIp(chatMessage))
+        if (ContainsUrlOrIp(chatMessage) && !IsWhitelisted(chatMessage))
         {
-            if (!IsWhitelisted(chatMessage))
-            {
-                string blockMessage = ReplaceColorPlaceholders(Config.BlockMessage);
-                
-                player.PrintToChat(blockMessage);
-                return HookResult.Handled;
-            }
+            player.PrintToChat(ReplaceColorPlaceholders(Config.BlockMessage));
+            return HookResult.Handled;
         }
 
         return HookResult.Continue;
@@ -203,59 +194,44 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     [GameEventHandler]
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
-        checkPlayerName(@event.Userid);
+        CheckPlayerName(@event.Userid);
         return HookResult.Continue;
     }
 
-    private void checkPlayerName(CCSPlayerController? player)
+    private void CheckPlayerName(CCSPlayerController? player)
     {
-        if (player == null || player.IsBot)
-        {
-            return;
-        }
+        if (player == null || player.IsBot) return;
+        
         string playerName = player.PlayerName;
         
-        if (ContainsUrlOrIp(playerName))
+        if (ContainsUrlOrIp(playerName) && !IsWhitelisted(playerName))
         {
-            if (!IsWhitelisted(playerName))
-            {
-                if (Config.NameAction == 0)
-                {
-                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                }
-                else if (Config.NameAction == 1)
-                {
-                    RenamePlayer(player);
-                }
-            }
+            if (Config.NameAction == 0)
+                NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+            else if (Config.NameAction == 1)
+                RenamePlayer(player);
         }
     }
 
     [GameEventHandler]
     public HookResult OnPlayerChangeName(EventPlayerChangename @event, GameEventInfo info)
     {
-        CCSPlayerController player = @event.Userid;
-
-        if (player == null || player.IsBot)
-        {
+        var player = @event.Userid;
+        if (player == null || player.IsBot) 
             return HookResult.Continue;
-        }
         
         string newName = @event.Newname;
         
-        if (ContainsUrlOrIp(newName))
+        if (ContainsUrlOrIp(newName) && !IsWhitelisted(newName))
         {
-            if (!IsWhitelisted(newName))
+            if (Config.NameAction == 0)
             {
-                if (Config.NameAction == 0)
-                {
-                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                    return HookResult.Handled;
-                }
-                else if (Config.NameAction == 1)
-                {
-                    RenamePlayer(player);
-                }
+                NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                return HookResult.Handled;
+            }
+            else if (Config.NameAction == 1)
+            {
+                RenamePlayer(player);
             }
         }
         
@@ -265,19 +241,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private void RenamePlayer(CCSPlayerController player)
     {
         string cleanedName = CleanName(player.PlayerName);
-
         player.PlayerName = cleanedName;
-
         Utilities.SetStateChanged(player, "CBasePlayerController", "m_iszPlayerName");
-
-        string renameMessage = ReplaceColorPlaceholders(Config.RenameMessage);
-        player.PrintToChat(renameMessage);
-    }
-
-    private bool IsWhitelisted(string message)
-    {
-        string lowerCaseMessage = message.ToLowerInvariant();
-
-        return Config.Whitelist.Any(whitelistedItem => lowerCaseMessage.Contains(whitelistedItem.ToLowerInvariant()));
+        player.PrintToChat(ReplaceColorPlaceholders(Config.RenameMessage));
     }
 }

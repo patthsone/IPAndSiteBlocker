@@ -6,14 +6,15 @@ A plugin that blocks websites and IP addresses (name + chat), with a configurabl
 The configuration file will be automatically generated in `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`
 ```json
 {
-  "whitelist": [
-    "1.1.1.1"
-  ],
-  "block_message": "{darkred}Blocked: Sending IP addresses or websites is not allowed.",
-  "name_action": 1,
-  "rename_message": "{darkred}Your name contains a blocked IP address or website. It will be renamed.",
-  "admin_immunity": 0,
-  "ConfigVersion": 3
+    "whitelist": [
+        "сайт",
+        "айпи"
+    ],
+    "block_message": "{darkred}Blocked: Sending IP addresses or websites is not allowed.",
+    "name_action": 1,
+    "rename_message": "{darkred}Your name contains a blocked IP address or website. It will be renamed.",
+    "admin_immunity": 1,
+    "ConfigVersion": 1
 }
 ```
 
