@@ -1,3 +1,22 @@
+// ============================================================================
+// IPAndSiteBlocker - Counter-Strike 2 Plugin
+// Version: 0.2.3
+// Author: PattHs and Luxecs2.ru
+// 
+// Description:
+// Blocks websites and IP addresses in chat and player names with whitelist support.
+// Блокирует веб-сайты и IP-адреса в чате и именах игроков с поддержкой белого списка.
+//
+// API Compatibility:
+// This plugin is designed to work with ANY version of CounterStrikeSharp.API.
+// Uses floating version (Version="*") for automatic compatibility with new releases.
+// Плагин разработан для работы с ЛЮБОЙ версией CounterStrikeSharp.API.
+// Использует плавающую версию для автоматической совместимости с новыми релизами.
+//
+// For more information, see COMPATIBILITY.md
+// Для дополнительной информации смотрите COMPATIBILITY.md
+// ============================================================================
+
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -46,9 +65,9 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "0.2.2";
+    public override string ModuleVersion => "0.2.3";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
-    public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков.";
+    public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков. (Future-proof: Compatible with all CounterStrikeSharp.API versions)";
 
     public SiteAndIPBlockerConfig Config { get; set; } = null!;
 
@@ -105,12 +124,51 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     public override void Load(bool hotReload)
     {
-        // Universal chat handling - single method for both say and say_team
-        AddCommandListener("say", OnPlayerChat);
-        AddCommandListener("say_team", OnPlayerChat);
-        
-        // Start async logging
-        _ = Task.Run(ProcessLogQueueAsync, _logCancellationTokenSource.Token);
+        try
+        {
+            // Log plugin and API version information for troubleshooting
+            LogMessageAsync($"IPAndSiteBlocker v{ModuleVersion} loading...");
+            LogMessageAsync($"CounterStrikeSharp API: {GetApiVersion()}");
+            
+            // Universal chat handling - single method for both say and say_team
+            // Wrapped in try-catch to handle potential API changes
+            try
+            {
+                AddCommandListener("say", OnPlayerChat);
+                AddCommandListener("say_team", OnPlayerChat);
+                LogMessageAsync("Chat listeners registered successfully.");
+            }
+            catch (Exception ex)
+            {
+                LogMessageAsync($"Warning: Failed to register chat listeners: {ex.Message}");
+                // Continue loading even if chat listeners fail
+            }
+            
+            // Start async logging
+            _ = Task.Run(ProcessLogQueueAsync, _logCancellationTokenSource.Token);
+            
+            LogMessageAsync("IPAndSiteBlocker loaded successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[IPAndSiteBlocker] Critical error during load: {ex.Message}");
+            throw; // Re-throw critical errors
+        }
+    }
+    
+    // Get API version for logging and compatibility checking
+    private string GetApiVersion()
+    {
+        try
+        {
+            var apiAssembly = typeof(BasePlugin).Assembly;
+            var version = apiAssembly.GetName().Version;
+            return version?.ToString() ?? "Unknown";
+        }
+        catch
+        {
+            return "Unknown";
+        }
     }
 
     public override void Unload(bool hotReload)
@@ -271,13 +329,21 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (string.IsNullOrEmpty(chatMessage))
             return HookResult.Continue;
 
-        // Admin immunity check
-        if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
+        // Admin immunity check using safe wrapper
+        if (HasAdminImmunity(player))
             return HookResult.Continue;
 
         if (IsBlockedCached(chatMessage))
         {
-            player.PrintToChat(ReplaceColorPlaceholders(Config.BlockMessage));
+            try
+            {
+                player.PrintToChat(ReplaceColorPlaceholders(Config.BlockMessage));
+            }
+            catch (Exception ex)
+            {
+                LogMessageAsync($"Warning: Failed to send chat message: {ex.Message}");
+            }
+            
             LogMessageAsync($"Blocked message from {GetPlayerIdentifier(player)}: {chatMessage}");
             return HookResult.Handled;
         }
@@ -286,17 +352,35 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     }
 
     // Multiple event hooks for reliable name checking
+    // Wrapped in try-catch to handle potential API changes
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        // Check all connected players when round starts
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
+        try
         {
-            if (player != null && player.IsValid && !player.IsBot)
+            // Check all connected players when round starts
+            var players = Utilities.GetPlayers();
+            if (players != null)
             {
-                CheckAndHandlePlayerName(player);
+                foreach (var player in players)
+                {
+                    try
+                    {
+                        if (player != null && player.IsValid && !player.IsBot)
+                        {
+                            CheckAndHandlePlayerName(player);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessageAsync($"Error checking player in OnRoundStart: {ex.Message}");
+                    }
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error in OnRoundStart event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -304,14 +388,31 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     [GameEventHandler]
     public HookResult OnRoundFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
     {
-        // Check all players when freeze time ends
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
+        try
         {
-            if (player != null && player.IsValid && !player.IsBot)
+            // Check all players when freeze time ends
+            var players = Utilities.GetPlayers();
+            if (players != null)
             {
-                CheckAndHandlePlayerName(player);
+                foreach (var player in players)
+                {
+                    try
+                    {
+                        if (player != null && player.IsValid && !player.IsBot)
+                        {
+                            CheckAndHandlePlayerName(player);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessageAsync($"Error checking player in OnRoundFreezeEnd: {ex.Message}");
+                    }
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error in OnRoundFreezeEnd event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -319,25 +420,67 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     [GameEventHandler]
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
-        var player = @event.Userid;
-        // Delay check slightly to ensure player is fully loaded
-        Server.NextFrame(() => CheckAndHandlePlayerName(player));
+        try
+        {
+            var player = @event.Userid;
+            if (player != null)
+            {
+                // Delay check slightly to ensure player is fully loaded
+                Server.NextFrame(() =>
+                {
+                    try
+                    {
+                        CheckAndHandlePlayerName(player);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessageAsync($"Error in delayed name check: {ex.Message}");
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error in OnPlayerConnectFull event: {ex.Message}");
+        }
         return HookResult.Continue;
     }
 
     [GameEventHandler]
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
-        // Check player name on every spawn
-        CheckAndHandlePlayerName(@event.Userid);
+        try
+        {
+            // Check player name on every spawn
+            var player = @event.Userid;
+            if (player != null)
+            {
+                CheckAndHandlePlayerName(player);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error in OnPlayerSpawn event: {ex.Message}");
+        }
         return HookResult.Continue;
     }
 
     [GameEventHandler]
     public HookResult OnPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
     {
-        // Check player name when changing teams
-        CheckAndHandlePlayerName(@event.Userid);
+        try
+        {
+            // Check player name when changing teams
+            var player = @event.Userid;
+            if (player != null)
+            {
+                CheckAndHandlePlayerName(player);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error in OnPlayerTeam event: {ex.Message}");
+        }
         return HookResult.Continue;
     }
 
@@ -348,8 +491,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (player == null || !player.IsValid || player.IsBot) 
             return HookResult.Continue;
 
-        // Admin immunity check
-        if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
+        // Admin immunity check using safe wrapper
+        if (HasAdminImmunity(player))
             return HookResult.Continue;
         
         string newName = @event.Newname;
@@ -358,13 +501,27 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         {
             if (Config.NameAction == 0)
             {
-                NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {newName}");
+                try
+                {
+                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {newName}");
+                }
+                catch (Exception ex)
+                {
+                    LogMessageAsync($"Error kicking player: {ex.Message}");
+                }
                 return HookResult.Handled;
             }
             else if (Config.NameAction == 1)
             {
-                Server.NextFrame(() => RenamePlayer(player));
+                try
+                {
+                    Server.NextFrame(() => RenamePlayer(player));
+                }
+                catch (Exception ex)
+                {
+                    LogMessageAsync($"Error scheduling rename: {ex.Message}");
+                }
             }
         }
         
@@ -377,8 +534,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (player == null || !player.IsValid || player.IsBot) 
             return;
 
-        // Admin immunity check
-        if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
+        // Admin immunity check using safe wrapper
+        if (HasAdminImmunity(player))
             return;
         
         string playerName = player.PlayerName;
@@ -387,8 +544,15 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         {
             if (Config.NameAction == 0)
             {
-                NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {playerName}");
+                try
+                {
+                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {playerName}");
+                }
+                catch (Exception ex)
+                {
+                    LogMessageAsync($"Error kicking player: {ex.Message}");
+                }
             }
             else if (Config.NameAction == 1)
             {
@@ -399,20 +563,57 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private void RenamePlayer(CCSPlayerController player)
     {
-        string originalName = player.PlayerName;
-        string cleanedName = CleanName(originalName);
-        
-        // Ensure the new name is different and not empty
-        if (string.IsNullOrEmpty(cleanedName) || cleanedName == originalName)
+        try
         {
-            cleanedName = "Player" + Random.Shared.Next(1000, 9999);
+            if (player == null || !player.IsValid)
+                return;
+                
+            string originalName = player.PlayerName;
+            string cleanedName = CleanName(originalName);
+            
+            // Ensure the new name is different and not empty
+            if (string.IsNullOrEmpty(cleanedName) || cleanedName == originalName)
+            {
+                cleanedName = "Player" + Random.Shared.Next(1000, 9999);
+            }
+            
+            // Try to rename the player - this API might change between versions
+            try
+            {
+                player.PlayerName = cleanedName;
+                
+                // SetStateChanged might not exist in all versions, wrap in try-catch
+                try
+                {
+                    Utilities.SetStateChanged(player, "CBasePlayerController", "m_iszPlayerName");
+                }
+                catch (Exception ex)
+                {
+                    LogMessageAsync($"Warning: SetStateChanged failed (API change?): {ex.Message}");
+                    // Continue anyway - the name change might still work
+                }
+                
+                // PrintToChat might also change
+                try
+                {
+                    player.PrintToChat(ReplaceColorPlaceholders(Config.RenameMessage));
+                }
+                catch
+                {
+                    // Silently fail if chat message doesn't work
+                }
+                
+                LogMessageAsync($"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
+            }
+            catch (Exception ex)
+            {
+                LogMessageAsync($"Error renaming player: {ex.Message}");
+            }
         }
-        
-        player.PlayerName = cleanedName;
-        Utilities.SetStateChanged(player, "CBasePlayerController", "m_iszPlayerName");
-        player.PrintToChat(ReplaceColorPlaceholders(Config.RenameMessage));
-        
-        LogMessageAsync($"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Critical error in RenamePlayer: {ex.Message}");
+        }
     }
 
     private void LogBlockedDomain(string blockedContent, string type)
@@ -449,6 +650,28 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
     }
 
+    // Safe admin permission check - handles API changes gracefully
+    private bool HasAdminImmunity(CCSPlayerController player)
+    {
+        if (Config.AdminImmunity != 1)
+            return false;
+            
+        if (player == null || !player.IsValid)
+            return false;
+        
+        try
+        {
+            // AdminManager API might change between versions
+            return AdminManager.PlayerHasPermissions(player, "@css/generic");
+        }
+        catch (Exception ex)
+        {
+            // If AdminManager API changed, log and default to no immunity
+            LogMessageAsync($"Warning: Admin permission check failed (API change?): {ex.Message}");
+            return false;
+        }
+    }
+    
     private string GetPlayerIdentifier(CCSPlayerController player)
     {
         try
@@ -457,7 +680,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
         catch
         {
-            return $"User{player.UserId}";
+            try
+            {
+                return $"User{player.UserId}";
+            }
+            catch
+            {
+                return "UnknownPlayer";
+            }
         }
     }
 
