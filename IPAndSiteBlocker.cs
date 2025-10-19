@@ -33,14 +33,20 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
     [JsonPropertyName("log_path")]
     public string LogPath { get; set; } = "addons/counterstrikesharp/logs/ip_site_blocker.log";
 
+    [JsonPropertyName("blocked_domains_log")]
+    public string BlockedDomainsLog { get; set; } = "addons/counterstrikesharp/logs/blocked_domains.log";
+
+    [JsonPropertyName("auto_log_blocked")]
+    public bool AutoLogBlocked { get; set; } = true;
+
     [JsonPropertyName("ConfigVersion")]
-    public override int Version { get; set; } = 1;
+    public override int Version { get; set; } = 2;
 }
 
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "0.2.2";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков.";
 
@@ -163,28 +169,52 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private bool IsBlocked(string message)
     {
-        // Check URLs
-        if (UrlRegex.IsMatch(message))
-            return !IsWhitelisted(message);
+        // Check URLs - block ALL URLs except whitelisted
+        var urlMatches = UrlRegex.Matches(message);
+        foreach (Match match in urlMatches)
+        {
+            if (!IsWhitelisted(match.Value))
+            {
+                LogBlockedDomain(match.Value, "URL");
+                return true;
+            }
+        }
 
-        // Check IP addresses
-        if (IpRegex.IsMatch(message))
-            return !IsWhitelisted(message);
+        // Check IP addresses - block ALL IPs except whitelisted
+        var ipMatches = IpRegex.Matches(message);
+        foreach (Match match in ipMatches)
+        {
+            if (!IsWhitelisted(match.Value))
+            {
+                LogBlockedDomain(match.Value, "IP");
+                return true;
+            }
+        }
 
-        // Check domains (including naked domains)
-        if (DomainRegex.IsMatch(message))
-            return !IsWhitelisted(message);
+        // Check domains (including naked domains) - block ALL domains except whitelisted
+        var domainMatches = DomainRegex.Matches(message);
+        foreach (Match match in domainMatches)
+        {
+            if (!IsWhitelisted(match.Value))
+            {
+                LogBlockedDomain(match.Value, "Domain");
+                return true;
+            }
+        }
 
-        // Check for naked domains without protocol
+        // Check for naked domains without protocol - block ALL except whitelisted
         foreach (var domain in CommonDomains)
         {
             if (message.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                var domainMatches = Regex.Matches(message, $@"\b\w+{Regex.Escape(domain)}\b", RegexOptions.IgnoreCase);
-                foreach (Match match in domainMatches)
+                var nakedDomainMatches = Regex.Matches(message, $@"\b\w+{Regex.Escape(domain)}\b", RegexOptions.IgnoreCase);
+                foreach (Match match in nakedDomainMatches)
                 {
                     if (!IsWhitelisted(match.Value))
+                    {
+                        LogBlockedDomain(match.Value, "NakedDomain");
                         return true;
+                    }
                 }
             }
         }
@@ -255,11 +285,26 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         return HookResult.Continue;
     }
 
-    // Map start hook for reliable name checking
+    // Multiple event hooks for reliable name checking
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        // Check all connected players when map starts
+        // Check all connected players when round starts
+        var players = Utilities.GetPlayers();
+        foreach (var player in players)
+        {
+            if (player != null && player.IsValid && !player.IsBot)
+            {
+                CheckAndHandlePlayerName(player);
+            }
+        }
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnRoundFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
+    {
+        // Check all players when freeze time ends
         var players = Utilities.GetPlayers();
         foreach (var player in players)
         {
@@ -274,6 +319,24 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     [GameEventHandler]
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
+        var player = @event.Userid;
+        // Delay check slightly to ensure player is fully loaded
+        Server.NextFrame(() => CheckAndHandlePlayerName(player));
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    {
+        // Check player name on every spawn
+        CheckAndHandlePlayerName(@event.Userid);
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
+    {
+        // Check player name when changing teams
         CheckAndHandlePlayerName(@event.Userid);
         return HookResult.Continue;
     }
@@ -282,7 +345,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     public HookResult OnPlayerChangeName(EventPlayerChangename @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (player == null || player.IsBot) 
+        if (player == null || !player.IsValid || player.IsBot) 
+            return HookResult.Continue;
+
+        // Admin immunity check
+        if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
             return HookResult.Continue;
         
         string newName = @event.Newname;
@@ -297,7 +364,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
             else if (Config.NameAction == 1)
             {
-                RenamePlayer(player);
+                Server.NextFrame(() => RenamePlayer(player));
             }
         }
         
@@ -307,7 +374,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     // Universal name checking and handling
     private void CheckAndHandlePlayerName(CCSPlayerController? player)
     {
-        if (player == null || player.IsBot) 
+        if (player == null || !player.IsValid || player.IsBot) 
+            return;
+
+        // Admin immunity check
+        if (Config.AdminImmunity == 1 && AdminManager.PlayerHasPermissions(player, "@css/generic"))
             return;
         
         string playerName = player.PlayerName;
@@ -342,6 +413,40 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         player.PrintToChat(ReplaceColorPlaceholders(Config.RenameMessage));
         
         LogMessageAsync($"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
+    }
+
+    private void LogBlockedDomain(string blockedContent, string type)
+    {
+        if (!Config.AutoLogBlocked)
+            return;
+
+        try
+        {
+            var logPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
+            var logDir = Path.GetDirectoryName(logPath);
+            
+            if (!string.IsNullOrEmpty(logDir) && !Directory.Exists(logDir))
+                Directory.CreateDirectory(logDir);
+
+            string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{type}] {blockedContent}";
+            
+            // Asynchronously append to log without blocking
+            Task.Run(() =>
+            {
+                try
+                {
+                    File.AppendAllText(logPath, logEntry + Environment.NewLine);
+                }
+                catch
+                {
+                    // Ignore logging errors
+                }
+            });
+        }
+        catch
+        {
+            // Ignore logging errors to prevent crashes
+        }
     }
 
     private string GetPlayerIdentifier(CCSPlayerController player)
