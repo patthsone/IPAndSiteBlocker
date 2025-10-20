@@ -83,6 +83,10 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private readonly SemaphoreSlim _logSemaphore = new(1, 1);
     private readonly Queue<string> _logQueue = new();
     private readonly CancellationTokenSource _logCancellationTokenSource = new();
+    
+    // Cached paths to avoid accessing Server/Config from non-main threads
+    private string? _cachedLogPath;
+    private string? _cachedBlockedDomainsLogPath;
 
     private static readonly string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name ?? "";
     private static readonly string CfgPath = $"{Server.GameDirectory}/csgo/addons/counterstrikesharp/configs/plugins/{AssemblyName}/{AssemblyName}.json";
@@ -126,6 +130,10 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
+            // Cache paths in main thread to avoid thread-safety issues
+            _cachedLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.LogPath);
+            _cachedBlockedDomainsLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
+            
             // Log plugin and API version information for troubleshooting
             LogMessageAsync($"IPAndSiteBlocker v{ModuleVersion} loading...");
             LogMessageAsync($"CounterStrikeSharp API: {GetApiVersion()}");
@@ -618,12 +626,13 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private void LogBlockedDomain(string blockedContent, string type)
     {
-        if (!Config.AutoLogBlocked)
+        if (!Config.AutoLogBlocked || string.IsNullOrEmpty(_cachedBlockedDomainsLogPath))
             return;
 
         try
         {
-            var logPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
+            // Use cached path to avoid accessing Server/Config from non-main thread
+            var logPath = _cachedBlockedDomainsLogPath;
             var logDir = Path.GetDirectoryName(logPath);
             
             if (!string.IsNullOrEmpty(logDir) && !Directory.Exists(logDir))
@@ -717,12 +726,13 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             {
                 await _logSemaphore.WaitAsync(_logCancellationTokenSource.Token);
                 
-                if (_logQueue.Count > 0)
+                if (_logQueue.Count > 0 && !string.IsNullOrEmpty(_cachedLogPath))
                 {
-                    var logPath = Path.Combine(Server.GameDirectory, "csgo", Config.LogPath);
+                    // Use cached path to avoid accessing Server/Config from non-main thread
+                    var logPath = _cachedLogPath;
                     var logDir = Path.GetDirectoryName(logPath);
                     
-                    if (!string.IsNullOrEmpty(logDir) && !Directory.Exists(logPath))
+                    if (!string.IsNullOrEmpty(logDir) && !Directory.Exists(logDir))
                         Directory.CreateDirectory(logDir);
                     
                     var logEntries = new List<string>();
