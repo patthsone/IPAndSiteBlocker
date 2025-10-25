@@ -36,7 +36,7 @@ A plugin that blocks websites and IP addresses (name + chat), with a configurabl
 ### Building from Source / Сборка из исходников
 ```bash
 # Clone the repository / Клонируйте репозиторий
-git clone https://github.com/YourUsername/IPAndSiteBlocker.git
+git clone https://github.com/patthsone/IPAndSiteBlocker.git
 cd IPAndSiteBlocker
 
 # Build the plugin / Соберите плагин
