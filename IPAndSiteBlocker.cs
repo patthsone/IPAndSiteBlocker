@@ -1,22 +1,3 @@
-// ============================================================================
-// IPAndSiteBlocker - Counter-Strike 2 Plugin
-// Version: 0.2.3
-// Author: PattHs and Luxecs2.ru
-// 
-// Description:
-// Blocks websites and IP addresses in chat and player names with whitelist support.
-// Блокирует веб-сайты и IP-адреса в чате и именах игроков с поддержкой белого списка.
-//
-// API Compatibility:
-// This plugin is designed to work with ANY version of CounterStrikeSharp.API.
-// Uses floating version (Version="*") for automatic compatibility with new releases.
-// Плагин разработан для работы с ЛЮБОЙ версией CounterStrikeSharp.API.
-// Использует плавающую версию для автоматической совместимости с новыми релизами.
-//
-// For more information, see COMPATIBILITY.md
-// Для дополнительной информации смотрите COMPATIBILITY.md
-// ============================================================================
-
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -29,8 +10,60 @@ using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace SiteAndIPBlocker;
+
+public class Localization
+{
+    private readonly Dictionary<string, string> _translations = new();
+
+    public Localization(string language)
+    {
+        LoadTranslations(language);
+    }
+
+    private void LoadTranslations(string language)
+    {
+        try
+        {
+            string translationsPath = Path.Combine(ModuleDirectory, "translations", $"{language}.json");
+            if (File.Exists(translationsPath))
+            {
+                string json = File.ReadAllText(translationsPath);
+                var translations = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (translations != null)
+                {
+                    _translations.Clear();
+                    foreach (var kvp in translations)
+                    {
+                        _translations[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            else
+            {
+                // Fallback to English if language file doesn't exist
+                LoadTranslations("en");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[IPAndSiteBlocker] Error loading translations for {language}: {ex.Message}");
+            // Fallback to English
+            LoadTranslations("en");
+        }
+    }
+
+    public string Get(string key, params object[] args)
+    {
+        if (_translations.TryGetValue(key, out string? value))
+        {
+            return args.Length > 0 ? string.Format(value, args) : value;
+        }
+        return $"[{key}]"; // Return key in brackets if translation not found
+    }
+}
 
 public class SiteAndIPBlockerConfig : BasePluginConfig
 {
@@ -58,18 +91,22 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
     [JsonPropertyName("auto_log_blocked")]
     public bool AutoLogBlocked { get; set; } = true;
 
+    [JsonPropertyName("language")]
+    public string Language { get; set; } = "en";
+
     [JsonPropertyName("ConfigVersion")]
-    public override int Version { get; set; } = 2;
+    public override int Version { get; set; } = 3;
 }
 
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "0.2.3";
+    public override string ModuleVersion => "0.2.4";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков. (Future-proof: Compatible with all CounterStrikeSharp.API versions)";
 
     public SiteAndIPBlockerConfig Config { get; set; } = null!;
+    private Localization? _localization;
 
     // Optimized regex patterns for better performance
     private static readonly Regex UrlRegex = new(@"\b(?:https?|ftp)://[^\s/$.?#].[^\s]*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -101,6 +138,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     public void OnConfigParsed(SiteAndIPBlockerConfig config)
     {
         Config = config;
+        _localization = new Localization(config.Language);
         SafeUpdateConfig(config);
     }
 
@@ -118,11 +156,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             var updatedJsonContent = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(CfgPath, updatedJsonContent);
 
-            LogMessageAsync($"Config updated for V{newCfgVersion}.");
+            LogMessageAsync(_localization?.Get("config_updated", newCfgVersion) ?? $"Config updated for V{newCfgVersion}.");
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error updating config: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_updating_config", ex.Message) ?? $"Error updating config: {ex.Message}");
         }
     }
 
@@ -137,29 +175,29 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             // Log plugin and API version information for troubleshooting
             LogMessageAsync($"IPAndSiteBlocker v{ModuleVersion} loading...");
             LogMessageAsync($"CounterStrikeSharp API: {GetApiVersion()}");
-            
+
             // Universal chat handling - single method for both say and say_team
             // Wrapped in try-catch to handle potential API changes
             try
             {
                 AddCommandListener("say", OnPlayerChat);
                 AddCommandListener("say_team", OnPlayerChat);
-                LogMessageAsync("Chat listeners registered successfully.");
+                LogMessageAsync(_localization?.Get("chat_listeners_registered") ?? "Chat listeners registered successfully.");
             }
             catch (Exception ex)
             {
-                LogMessageAsync($"Warning: Failed to register chat listeners: {ex.Message}");
+                LogMessageAsync(_localization?.Get("warning_chat_listeners", ex.Message) ?? $"Warning: Failed to register chat listeners: {ex.Message}");
                 // Continue loading even if chat listeners fail
             }
-            
+
             // Start async logging
             _ = Task.Run(ProcessLogQueueAsync, _logCancellationTokenSource.Token);
-            
-            LogMessageAsync("IPAndSiteBlocker loaded successfully!");
+
+            LogMessageAsync(_localization?.Get("plugin_loaded") ?? "IPAndSiteBlocker loaded successfully!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[IPAndSiteBlocker] Critical error during load: {ex.Message}");
+            Console.WriteLine($"[IPAndSiteBlocker] {_localization?.Get("critical_error_load", ex.Message) ?? $"Critical error during load: {ex.Message}"}");
             throw; // Re-throw critical errors
         }
     }
@@ -345,14 +383,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         {
             try
             {
-                player.PrintToChat(ReplaceColorPlaceholders(Config.BlockMessage));
+                player.PrintToChat(ReplaceColorPlaceholders(_localization?.Get("block_message") ?? Config.BlockMessage));
             }
             catch (Exception ex)
             {
-                LogMessageAsync($"Warning: Failed to send chat message: {ex.Message}");
+                LogMessageAsync(_localization?.Get("warning_chat_message", ex.Message) ?? $"Warning: Failed to send chat message: {ex.Message}");
             }
-            
-            LogMessageAsync($"Blocked message from {GetPlayerIdentifier(player)}: {chatMessage}");
+
+            LogMessageAsync(_localization?.Get("blocked_message_log", GetPlayerIdentifier(player), chatMessage) ?? $"Blocked message from {GetPlayerIdentifier(player)}: {chatMessage}");
             return HookResult.Handled;
         }
 
@@ -381,14 +419,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                     }
                     catch (Exception ex)
                     {
-                        LogMessageAsync($"Error checking player in OnRoundStart: {ex.Message}");
+                        LogMessageAsync(_localization?.Get("error_checking_player", "OnRoundStart", ex.Message) ?? $"Error checking player in OnRoundStart: {ex.Message}");
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error in OnRoundStart event: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_event", "OnRoundStart", ex.Message) ?? $"Error in OnRoundStart event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -420,7 +458,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error in OnRoundFreezeEnd event: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_event", "OnRoundFreezeEnd", ex.Message) ?? $"Error in OnRoundFreezeEnd event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -442,14 +480,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                     }
                     catch (Exception ex)
                     {
-                        LogMessageAsync($"Error in delayed name check: {ex.Message}");
+                        LogMessageAsync(_localization?.Get("error_delayed_name_check", ex.Message) ?? $"Error in delayed name check: {ex.Message}");
                     }
                 });
             }
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error in OnPlayerConnectFull event: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_event", "OnPlayerConnectFull", ex.Message) ?? $"Error in OnPlayerConnectFull event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -468,7 +506,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error in OnPlayerSpawn event: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_event", "OnPlayerSpawn", ex.Message) ?? $"Error in OnPlayerSpawn event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -487,7 +525,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Error in OnPlayerTeam event: {ex.Message}");
+            LogMessageAsync(_localization?.Get("error_event", "OnPlayerTeam", ex.Message) ?? $"Error in OnPlayerTeam event: {ex.Message}");
         }
         return HookResult.Continue;
     }
@@ -512,11 +550,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 try
                 {
                     NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                    LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {newName}");
+                    LogMessageAsync(_localization?.Get("kicked_player", GetPlayerIdentifier(player), newName) ?? $"Kicked player {GetPlayerIdentifier(player)} for banned name: {newName}");
                 }
                 catch (Exception ex)
                 {
-                    LogMessageAsync($"Error kicking player: {ex.Message}");
+                    LogMessageAsync(_localization?.Get("error_kicking_player", ex.Message) ?? $"Error kicking player: {ex.Message}");
                 }
                 return HookResult.Handled;
             }
@@ -528,7 +566,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 }
                 catch (Exception ex)
                 {
-                    LogMessageAsync($"Error scheduling rename: {ex.Message}");
+                    LogMessageAsync(_localization?.Get("error_scheduling_rename", ex.Message) ?? $"Error scheduling rename: {ex.Message}");
                 }
             }
         }
@@ -555,11 +593,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 try
                 {
                     NativeAPI.IssueServerCommand($"kickid {player.UserId}");
-                    LogMessageAsync($"Kicked player {GetPlayerIdentifier(player)} for banned name: {playerName}");
+                    LogMessageAsync(_localization?.Get("kicked_player", GetPlayerIdentifier(player), playerName) ?? $"Kicked player {GetPlayerIdentifier(player)} for banned name: {playerName}");
                 }
                 catch (Exception ex)
                 {
-                    LogMessageAsync($"Error kicking player: {ex.Message}");
+                    LogMessageAsync(_localization?.Get("error_kicking_player", ex.Message) ?? $"Error kicking player: {ex.Message}");
                 }
             }
             else if (Config.NameAction == 1)
@@ -597,30 +635,30 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 }
                 catch (Exception ex)
                 {
-                    LogMessageAsync($"Warning: SetStateChanged failed (API change?): {ex.Message}");
+                    LogMessageAsync(_localization?.Get("warning_setstatechanged", ex.Message) ?? $"Warning: SetStateChanged failed (API change?): {ex.Message}");
                     // Continue anyway - the name change might still work
                 }
                 
                 // PrintToChat might also change
                 try
                 {
-                    player.PrintToChat(ReplaceColorPlaceholders(Config.RenameMessage));
+                    player.PrintToChat(ReplaceColorPlaceholders(_localization?.Get("rename_message") ?? Config.RenameMessage));
                 }
                 catch
                 {
                     // Silently fail if chat message doesn't work
                 }
-                
-                LogMessageAsync($"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
+
+                LogMessageAsync(_localization?.Get("renamed_player", GetPlayerIdentifier(player), originalName, cleanedName) ?? $"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
             }
             catch (Exception ex)
             {
-                LogMessageAsync($"Error renaming player: {ex.Message}");
+                LogMessageAsync(_localization?.Get("error_renaming_player", ex.Message) ?? $"Error renaming player: {ex.Message}");
             }
         }
         catch (Exception ex)
         {
-            LogMessageAsync($"Critical error in RenamePlayer: {ex.Message}");
+            LogMessageAsync(_localization?.Get("critical_error_rename", ex.Message) ?? $"Critical error in RenamePlayer: {ex.Message}");
         }
     }
 
@@ -676,7 +714,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         catch (Exception ex)
         {
             // If AdminManager API changed, log and default to no immunity
-            LogMessageAsync($"Warning: Admin permission check failed (API change?): {ex.Message}");
+            LogMessageAsync(_localization?.Get("warning_admin_permission", ex.Message) ?? $"Warning: Admin permission check failed (API change?): {ex.Message}");
             return false;
         }
     }

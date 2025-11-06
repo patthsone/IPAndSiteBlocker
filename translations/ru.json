@@ -1,0 +1,23 @@
+{
+  "block_message": "{darkred}Заблокировано: Отправка IP-адресов или сайтов запрещена.",
+  "rename_message": "{darkred}Ваше имя содержит заблокированный IP-адрес или сайт. Оно будет переименовано.",
+  "plugin_loaded": "IPAndSiteBlocker загружен успешно!",
+  "chat_listeners_registered": "Слушатели чата зарегистрированы успешно.",
+  "config_updated": "Конфиг обновлен для V{0}.",
+  "error_updating_config": "Ошибка обновления конфига: {0}",
+  "critical_error_load": "Критическая ошибка при загрузке: {0}",
+  "warning_chat_listeners": "Предупреждение: Не удалось зарегистрировать слушатели чата: {0}",
+  "blocked_message_log": "Заблокированное сообщение от {0}: {1}",
+  "kicked_player": "Игрок {0} кикнут за запрещенное имя: {1}",
+  "renamed_player": "Игрок {0} переименован с '{1}' на '{2}'",
+  "error_kicking_player": "Ошибка кика игрока: {0}",
+  "error_scheduling_rename": "Ошибка планирования переименования: {0}",
+  "error_renaming_player": "Ошибка переименования игрока: {0}",
+  "critical_error_rename": "Критическая ошибка в RenamePlayer: {0}",
+  "warning_setstatechanged": "Предупреждение: SetStateChanged не удалось (изменение API?): {0}",
+  "error_checking_player": "Ошибка проверки игрока в {0}: {1}",
+  "error_event": "Ошибка в событии {0}: {1}",
+  "error_delayed_name_check": "Ошибка в отложенной проверке имени: {0}",
+  "warning_admin_permission": "Предупреждение: Проверка прав админа не удалась (изменение API?): {0}",
+  "warning_chat_message": "Предупреждение: Не удалось отправить сообщение в чат: {0}"
+}
