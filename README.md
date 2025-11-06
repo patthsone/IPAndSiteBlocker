@@ -2,6 +2,8 @@
 A plugin that blocks websites and IP addresses (name + chat), with a configurable whitelist for allowed sites and IPs.
 Плагин, блокирующий веб-сайты и IP-адреса (имя + чат), с настраиваемым белым списком разрешенных сайтов и IP-адресов.
 
+🌍 **Multi-Language Support / Поддержка нескольких языков**: English, Russian, Ukrainian / Английский, русский, украинский
+
 ## Compatibility / Совместимость
 ✅ **CounterStrikeSharp API**: Compatible with **ANY** version (automatic) / Совместим с **ЛЮБОЙ** версией (автоматически)  
 ✅ **Auto-Updates**: Uses floating version to automatically work with new API releases / Использует плавающую версию для автоматической работы с новыми релизами API  
@@ -61,21 +63,23 @@ The plugin uses floating versions, so rebuilding with `dotnet build` will automa
 Плагин использует плавающие версии, поэтому пересборка через `dotnet build` автоматически использует последнюю совместимую версию API.
 
 ## Features / Возможности
-✅ **Strict Blocking Mode / Строгий режим блокировки**: Blocks ALL links and IPs except whitelisted ones / Блокирует ВСЕ ссылки и IP кроме белого списка  
-✅ **Auto-Logging Blocked Domains / Автоматическое логирование**: Automatically records all blocked domains to a file / Автоматически записывает все заблокированные домены в файл  
-✅ **Enhanced Name Checking / Улучшенная проверка имён**: Checks names at multiple events (spawn, team change, round start, etc.) / Проверяет имена при всех событиях (спавн, смена команды, старт раунда и т.д.)  
-✅ **Optimized Performance / Оптимизированная производительность**: Cached blocking results for faster processing / Кэширование результатов для быстрой обработки  
-✅ **Asynchronous Logging / Асинхронное логирование**: Non-blocking logging system for high-traffic servers / Неблокирующая система логирования  
-✅ **Universal Chat Handling / Универсальная обработка чата**: Single method handles both public and team chat / Один метод обрабатывает оба чата  
-✅ **Smart Domain Detection / Умное определение доменов**: Blocks naked domains (site.io, domain.xyz) without protocols / Блокирует домены без протоколов  
-✅ **Safe Config Updates / Безопасное обновление конфига**: Error handling prevents crashes during config updates / Обработка ошибок предотвращает краши  
-✅ **Admin Immunity / Иммунитет админов**: Admins with proper permissions can bypass blocking / Админы с правами могут обходить блокировку  
+✅ **Multi-Language Support / Поддержка нескольких языков**: English, Russian, Ukrainian with automatic fallback / Английский, русский, украинский с автоматическим fallback
+✅ **Strict Blocking Mode / Строгий режим блокировки**: Blocks ALL links and IPs except whitelisted ones / Блокирует ВСЕ ссылки и IP кроме белого списка
+✅ **Auto-Logging Blocked Domains / Автоматическое логирование**: Automatically records all blocked domains to a file / Автоматически записывает все заблокированные домены в файл
+✅ **Enhanced Name Checking / Улучшенная проверка имён**: Checks names at multiple events (spawn, team change, round start, etc.) / Проверяет имена при всех событиях (спавн, смена команды, старт раунда и т.д.)
+✅ **Optimized Performance / Оптимизированная производительность**: Cached blocking results for faster processing / Кэширование результатов для быстрой обработки
+✅ **Asynchronous Logging / Асинхронное логирование**: Non-blocking logging system for high-traffic servers / Неблокирующая система логирования
+✅ **Universal Chat Handling / Универсальная обработка чата**: Single method handles both public and team chat / Один метод обрабатывает оба чата
+✅ **Smart Domain Detection / Умное определение доменов**: Blocks naked domains (site.io, domain.xyz) without protocols / Блокирует домены без протоколов
+✅ **Safe Config Updates / Безопасное обновление конфига**: Error handling prevents crashes during config updates / Обработка ошибок предотвращает краши
+✅ **Admin Immunity / Иммунитет админов**: Admins with proper permissions can bypass blocking / Админы с правами могут обходить блокировку
 
 ## Config / Конфигурация
 The configuration file will be automatically generated in `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`  
 Конфигурационный файл автоматически создаётся в `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`
 ```json
 {
+    "language": "en",
     "whitelist": [
         "yoursite.com",
         "192.168.1.1"
@@ -87,11 +91,12 @@ The configuration file will be automatically generated in `csgo/addons/counterst
     "log_path": "addons/counterstrikesharp/logs/ip_site_blocker.log",
     "blocked_domains_log": "addons/counterstrikesharp/logs/blocked_domains.log",
     "auto_log_blocked": true,
-    "ConfigVersion": 2
+    "ConfigVersion": 3
 }
 ```
 
 ### Configuration Options / Опции конфигурации
+- **language** / Язык: Plugin language ("en", "ru", "ua") - defaults to "en" if not set / Язык плагина ("en", "ru", "ua") - по умолчанию "en" если не указано
 - **whitelist** / Белый список: Array of allowed domains/IPs that won't be blocked / Массив разрешённых доменов/IP, которые не будут блокироваться
 - **block_message** / Сообщение о блокировке: Message shown when a message is blocked / Сообщение при блокировке сообщения
 - **name_action** / Действие с именем: 0 = kick player / кикнуть игрока, 1 = rename player / переименовать игрока
@@ -137,8 +142,24 @@ Player names are now checked at multiple events to ensure consistency:
 - ✅ Freeze Time End / Конец разминки
 - ✅ Name Change / Смена имени
 
-This fixes the issue where links would appear/disappear when joining during warmup or rounds.  
+This fixes the issue where links would appear/disappear when joining during warmup or rounds.
 Это исправляет проблему, когда ссылки появлялись/исчезали при заходе во время разминки или раунда.
+
+### Language Support / Поддержка языков
+The plugin supports multiple languages with automatic fallback to English if the selected language file is missing.
+Плагин поддерживает несколько языков с автоматическим fallback на английский, если файл выбранного языка отсутствует.
+
+**Supported Languages / Поддерживаемые языки:**
+- **en** (English) - Default / По умолчанию
+- **ru** (Русский)
+- **ua** (Українська)
+
+**Example configurations / Примеры конфигураций:**
+```json
+{"language": "ru"}  // Russian / Русский
+{"language": "ua"}  // Ukrainian / Украинский
+{"language": "en"}  // English / Английский
+```
 
 ## Available colors / Доступные цвета
 ```
