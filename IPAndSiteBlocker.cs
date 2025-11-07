@@ -17,6 +17,7 @@ namespace SiteAndIPBlocker;
 public class Localization
 {
     private readonly Dictionary<string, string> _translations = new();
+    private static readonly string ModuleDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "";
 
     public Localization(string language)
     {
