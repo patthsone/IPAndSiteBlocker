@@ -44,14 +44,12 @@ public class Localization
             }
             else
             {
-                // Fallback to English if language file doesn't exist
                 LoadTranslations("en");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[IPAndSiteBlocker] Error loading translations for {language}: {ex.Message}");
-            // Fallback to English
             LoadTranslations("en");
         }
     }
@@ -109,20 +107,16 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     public SiteAndIPBlockerConfig Config { get; set; } = null!;
     private Localization? _localization;
 
-    // Optimized regex patterns for better performance
     private static readonly Regex UrlRegex = new(@"\b(?:https?|ftp)://[^\s/$.?#].[^\s]*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex IpRegex = new(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled);
     private static readonly Regex DomainRegex = new(@"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    
-    // Cache for blocking results to improve performance
+
     private readonly ConcurrentDictionary<string, bool> _blockingCache = new();
     
-    // Async logging queue
     private readonly SemaphoreSlim _logSemaphore = new(1, 1);
     private readonly Queue<string> _logQueue = new();
     private readonly CancellationTokenSource _logCancellationTokenSource = new();
-    
-    // Cached paths to avoid accessing Server/Config from non-main threads
+
     private string? _cachedLogPath;
     private string? _cachedBlockedDomainsLogPath;
 
@@ -169,16 +163,12 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
-            // Cache paths in main thread to avoid thread-safety issues
             _cachedLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.LogPath);
             _cachedBlockedDomainsLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
-            
-            // Log plugin and API version information for troubleshooting
+
             LogMessageAsync($"IPAndSiteBlocker v{ModuleVersion} loading...");
             LogMessageAsync($"CounterStrikeSharp API: {GetApiVersion()}");
 
-            // Universal chat handling - single method for both say and say_team
-            // Wrapped in try-catch to handle potential API changes
             try
             {
                 AddCommandListener("say", OnPlayerChat);
@@ -188,10 +178,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             catch (Exception ex)
             {
                 LogMessageAsync(_localization?.Get("warning_chat_listeners", ex.Message) ?? $"Warning: Failed to register chat listeners: {ex.Message}");
-                // Continue loading even if chat listeners fail
             }
 
-            // Start async logging
             _ = Task.Run(ProcessLogQueueAsync, _logCancellationTokenSource.Token);
 
             LogMessageAsync(_localization?.Get("plugin_loaded") ?? "IPAndSiteBlocker loaded successfully!");
@@ -202,8 +190,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             throw; // Re-throw critical errors
         }
     }
-    
-    // Get API version for logging and compatibility checking
+
     private string GetApiVersion()
     {
         try
@@ -253,19 +240,16 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         return message;
     }
 
-    // Optimized blocking check with caching
     private bool IsBlockedCached(string message)
     {
         if (string.IsNullOrEmpty(message))
             return false;
 
-        // Check cache first
         if (_blockingCache.TryGetValue(message, out bool cachedResult))
             return cachedResult;
 
         bool isBlocked = IsBlocked(message);
         
-        // Cache the result (limit cache size to prevent memory issues)
         if (_blockingCache.Count < 1000)
             _blockingCache.TryAdd(message, isBlocked);
         
@@ -274,7 +258,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     private bool IsBlocked(string message)
     {
-        // Check URLs - block ALL URLs except whitelisted
         var urlMatches = UrlRegex.Matches(message);
         foreach (Match match in urlMatches)
         {
@@ -285,7 +268,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
         }
 
-        // Check IP addresses - block ALL IPs except whitelisted
         var ipMatches = IpRegex.Matches(message);
         foreach (Match match in ipMatches)
         {
@@ -296,7 +278,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
         }
 
-        // Check domains (including naked domains) - block ALL domains except whitelisted
         var domainMatches = DomainRegex.Matches(message);
         foreach (Match match in domainMatches)
         {
@@ -307,7 +288,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
         }
 
-        // Check for naked domains without protocol - block ALL except whitelisted
         foreach (var domain in CommonDomains)
         {
             if (message.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -332,22 +312,17 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (string.IsNullOrEmpty(name))
             return "Player";
 
-        // Remove URLs
         name = UrlRegex.Replace(name, "");
-        
-        // Remove IP addresses
+
         name = IpRegex.Replace(name, "");
-        
-        // Remove domains
+
         name = DomainRegex.Replace(name, "");
-        
-        // Remove naked domains
+
         foreach (var domain in CommonDomains)
             name = Regex.Replace(name, $@"\b\w+{Regex.Escape(domain)}\b", "", RegexOptions.IgnoreCase);
 
         name = name.Trim();
-        
-        // Ensure we have a valid name
+
         if (string.IsNullOrEmpty(name) || name.Length < 2)
             name = "Player" + Random.Shared.Next(1000, 9999);
             
@@ -366,7 +341,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             lowerCaseMessage.Contains(whitelistedItem.ToLowerInvariant()));
     }
 
-    // Universal chat handling method
     private HookResult OnPlayerChat(CCSPlayerController? player, CommandInfo message)
     {
         if (player == null || !player.IsValid || player.IsBot)
@@ -376,7 +350,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (string.IsNullOrEmpty(chatMessage))
             return HookResult.Continue;
 
-        // Admin immunity check using safe wrapper
         if (HasAdminImmunity(player))
             return HookResult.Continue;
 
@@ -398,14 +371,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         return HookResult.Continue;
     }
 
-    // Multiple event hooks for reliable name checking
-    // Wrapped in try-catch to handle potential API changes
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         try
         {
-            // Check all connected players when round starts
             var players = Utilities.GetPlayers();
             if (players != null)
             {
@@ -437,7 +407,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
-            // Check all players when freeze time ends
             var players = Utilities.GetPlayers();
             if (players != null)
             {
@@ -472,7 +441,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             var player = @event.Userid;
             if (player != null)
             {
-                // Delay check slightly to ensure player is fully loaded
                 Server.NextFrame(() =>
                 {
                     try
@@ -498,7 +466,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
-            // Check player name on every spawn
             var player = @event.Userid;
             if (player != null)
             {
@@ -517,7 +484,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
-            // Check player name when changing teams
             var player = @event.Userid;
             if (player != null)
             {
@@ -538,7 +504,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         if (player == null || !player.IsValid || player.IsBot) 
             return HookResult.Continue;
 
-        // Admin immunity check using safe wrapper
         if (HasAdminImmunity(player))
             return HookResult.Continue;
         
@@ -575,13 +540,11 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         return HookResult.Continue;
     }
 
-    // Universal name checking and handling
     private void CheckAndHandlePlayerName(CCSPlayerController? player)
     {
         if (player == null || !player.IsValid || player.IsBot) 
             return;
 
-        // Admin immunity check using safe wrapper
         if (HasAdminImmunity(player))
             return;
         
@@ -618,18 +581,15 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             string originalName = player.PlayerName;
             string cleanedName = CleanName(originalName);
             
-            // Ensure the new name is different and not empty
             if (string.IsNullOrEmpty(cleanedName) || cleanedName == originalName)
             {
                 cleanedName = "Player" + Random.Shared.Next(1000, 9999);
             }
             
-            // Try to rename the player - this API might change between versions
             try
             {
                 player.PlayerName = cleanedName;
                 
-                // SetStateChanged might not exist in all versions, wrap in try-catch
                 try
                 {
                     Utilities.SetStateChanged(player, "CBasePlayerController", "m_iszPlayerName");
@@ -637,17 +597,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 catch (Exception ex)
                 {
                     LogMessageAsync(_localization?.Get("warning_setstatechanged", ex.Message) ?? $"Warning: SetStateChanged failed (API change?): {ex.Message}");
-                    // Continue anyway - the name change might still work
                 }
                 
-                // PrintToChat might also change
                 try
                 {
                     player.PrintToChat(ReplaceColorPlaceholders(_localization?.Get("rename_message") ?? Config.RenameMessage));
                 }
                 catch
                 {
-                    // Silently fail if chat message doesn't work
                 }
 
                 LogMessageAsync(_localization?.Get("renamed_player", GetPlayerIdentifier(player), originalName, cleanedName) ?? $"Renamed player {GetPlayerIdentifier(player)} from '{originalName}' to '{cleanedName}'");
@@ -670,7 +627,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
         try
         {
-            // Use cached path to avoid accessing Server/Config from non-main thread
             var logPath = _cachedBlockedDomainsLogPath;
             var logDir = Path.GetDirectoryName(logPath);
             
@@ -679,7 +635,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
             string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{type}] {blockedContent}";
             
-            // Asynchronously append to log without blocking
             Task.Run(() =>
             {
                 try
@@ -688,17 +643,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 }
                 catch
                 {
-                    // Ignore logging errors
                 }
             });
         }
         catch
         {
-            // Ignore logging errors to prevent crashes
         }
     }
 
-    // Safe admin permission check - handles API changes gracefully
     private bool HasAdminImmunity(CCSPlayerController player)
     {
         if (Config.AdminImmunity != 1)
@@ -709,12 +661,10 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         
         try
         {
-            // AdminManager API might change between versions
             return AdminManager.PlayerHasPermissions(player, "@css/generic");
         }
         catch (Exception ex)
         {
-            // If AdminManager API changed, log and default to no immunity
             LogMessageAsync(_localization?.Get("warning_admin_permission", ex.Message) ?? $"Warning: Admin permission check failed (API change?): {ex.Message}");
             return false;
         }
@@ -739,7 +689,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
     }
 
-    // Asynchronous logging
     private async void LogMessageAsync(string message)
     {
         try
@@ -749,7 +698,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
         catch
         {
-            // Ignore logging errors to prevent crashes
         }
         finally
         {
@@ -767,7 +715,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
                 
                 if (_logQueue.Count > 0 && !string.IsNullOrEmpty(_cachedLogPath))
                 {
-                    // Use cached path to avoid accessing Server/Config from non-main thread
                     var logPath = _cachedLogPath;
                     var logDir = Path.GetDirectoryName(logPath);
                     
@@ -785,7 +732,6 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
             catch
             {
-                // Ignore logging errors to prevent crashes
             }
             finally
             {
