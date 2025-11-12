@@ -60,7 +60,7 @@ public class Localization
         {
             return args.Length > 0 ? string.Format(value, args) : value;
         }
-        return $"[{key}]"; // Return key in brackets if translation not found
+        return $"[{key}]";
     }
 }
 
