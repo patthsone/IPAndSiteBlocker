@@ -116,6 +116,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private readonly SemaphoreSlim _logSemaphore = new(1, 1);
     private readonly Queue<string> _logQueue = new();
     private readonly CancellationTokenSource _logCancellationTokenSource = new();
+    private Timer? _cacheCleanupTimer;
 
     private string? _cachedLogPath;
     private string? _cachedBlockedDomainsLogPath;
@@ -182,6 +183,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
             _ = Task.Run(ProcessLogQueueAsync, _logCancellationTokenSource.Token);
 
+            _cacheCleanupTimer = new Timer(CleanupCache, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+
             LogMessageAsync(_localization?.Get("plugin_loaded") ?? "IPAndSiteBlocker loaded successfully!");
         }
         catch (Exception ex)
@@ -205,10 +208,23 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
     }
 
+    private void CleanupCache(object? state)
+    {
+        try
+        {
+            _blockingCache.Clear();
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"Error cleaning cache: {ex.Message}");
+        }
+    }
+
     public override void Unload(bool hotReload)
     {
         _logCancellationTokenSource.Cancel();
         _logSemaphore.Dispose();
+        _cacheCleanupTimer?.Dispose();
     }
 
     private static readonly Dictionary<string, char> ColorMap = new Dictionary<string, char>
@@ -318,14 +334,16 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
         name = DomainRegex.Replace(name, "");
 
-        foreach (var domain in CommonDomains)
-            name = Regex.Replace(name, $@"\b\w+{Regex.Escape(domain)}\b", "", RegexOptions.IgnoreCase);
+        // Optimize domain removal by combining into single regex
+        var domainPattern = string.Join("|", CommonDomains.Select(d => Regex.Escape(d)));
+        var combinedDomainRegex = new Regex($@"\b\w+({domainPattern})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        name = combinedDomainRegex.Replace(name, "");
 
         name = name.Trim();
 
         if (string.IsNullOrEmpty(name) || name.Length < 2)
             name = "Player" + Random.Shared.Next(1000, 9999);
-            
+
         return name;
     }
 
@@ -629,17 +647,17 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         {
             var logPath = _cachedBlockedDomainsLogPath;
             var logDir = Path.GetDirectoryName(logPath);
-            
+
             if (!string.IsNullOrEmpty(logDir) && !Directory.Exists(logDir))
                 Directory.CreateDirectory(logDir);
 
             string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{type}] {blockedContent}";
-            
-            Task.Run(() =>
+
+            Task.Run(async () =>
             {
                 try
                 {
-                    File.AppendAllText(logPath, logEntry + Environment.NewLine);
+                    await File.AppendAllTextAsync(logPath, logEntry + Environment.NewLine);
                 }
                 catch
                 {

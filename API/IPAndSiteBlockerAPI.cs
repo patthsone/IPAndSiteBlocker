@@ -3,7 +3,15 @@ using System.Collections.Generic;
 
 namespace IPAndSiteBlockerAPI
 {
-    public static class BlockChecker
+    public interface IBlockChecker
+    {
+        List<string> Whitelist { get; set; }
+        bool IsBlocked(string message);
+        string CleanName(string name);
+        bool IsWhitelisted(string message);
+    }
+
+    public class BlockChecker : IBlockChecker
     {
         private static readonly Regex UrlRegex = new(@"\b(?:https?|ftp)://[^\s/$.?#].[^\s]*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex IpRegex = new(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled);
@@ -16,9 +24,17 @@ namespace IPAndSiteBlockerAPI
             ".xyz", ".site", ".tech", ".dev", ".app", ".cloud"
         };
 
-        public static List<string> Whitelist { get; set; } = new List<string>();
+        public List<string> Whitelist { get; set; } = new List<string>();
 
-        public static bool IsBlocked(string message)
+        public BlockChecker(IEnumerable<string>? whitelist = null)
+        {
+            if (whitelist != null)
+            {
+                Whitelist.AddRange(whitelist);
+            }
+        }
+
+        public bool IsBlocked(string message)
         {
             if (string.IsNullOrEmpty(message))
                 return false;
@@ -68,7 +84,7 @@ namespace IPAndSiteBlockerAPI
             return false;
         }
 
-        public static string CleanName(string name)
+        public string CleanName(string name)
         {
             if (string.IsNullOrEmpty(name))
                 return "Player";
@@ -90,7 +106,7 @@ namespace IPAndSiteBlockerAPI
             return name;
         }
 
-        public static bool IsWhitelisted(string message)
+        public bool IsWhitelisted(string message)
         {
             if (string.IsNullOrEmpty(message) || Whitelist.Count == 0)
                 return false;

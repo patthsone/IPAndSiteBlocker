@@ -1,11 +1,12 @@
 using IPAndSiteBlockerAPI;
+using System.Collections.Generic;
 
 class Program
 {
     static void Main()
     {
-        BlockChecker.Whitelist.Add("google.com");
-        BlockChecker.Whitelist.Add("192.168.1.1");
+        var whitelist = new List<string> { "google.com", "192.168.1.1" };
+        var blockChecker = new BlockChecker(whitelist);
 
         string[] messages = {
             "Check out this site: http://example.com",
@@ -16,12 +17,12 @@ class Program
 
         foreach (var msg in messages)
         {
-            bool blocked = BlockChecker.IsBlocked(msg);
+            bool blocked = blockChecker.IsBlocked(msg);
             Console.WriteLine($"Message: '{msg}' - Blocked: {blocked}");
         }
 
         string playerName = "Player with http://bad.com in name";
-        string cleanedName = BlockChecker.CleanName(playerName);
+        string cleanedName = blockChecker.CleanName(playerName);
         Console.WriteLine($"Original name: '{playerName}' - Cleaned: '{cleanedName}'");
     }
 }
