@@ -100,7 +100,7 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "0.2.4";
+    public override string ModuleVersion => "0.2.5";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков. (Future-proof: Compatible with all CounterStrikeSharp.API versions)";
 
