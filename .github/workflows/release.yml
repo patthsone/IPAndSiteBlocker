@@ -33,18 +33,41 @@ jobs:
         # Store archive path for next step
         echo "ARCHIVE_NAME=$archiveName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+    - name: Generate release notes
+      run: |
+        $version = "${{ github.ref_name }}"
+        $previousTag = git describe --tags --abbrev=0 HEAD~1 2>$null
+        if ($LASTEXITCODE -ne 0) {
+          $previousTag = ""
+        }
+
+        if ($previousTag) {
+          $changelog = git log --pretty=format:"- %s (%h)" --no-merges $previousTag..HEAD
+        } else {
+          $changelog = git log --pretty=format:"- %s (%h)" --no-merges -10
+        }
+
+        $body = @"
+        ## Changes in $version
+
+        $changelog
+
+        ## Installation
+        Download the ZIP file and extract `IPAndSiteBlocker.dll` and `translations` folder to your `csgo/addons/counterstrikesharp/plugins/IPAndSiteBlocker/` directory.
+
+        ## Full Changelog
+        See [CHANGELOG.md](CHANGELOG.md) for details.
+        "@
+
+        echo "RELEASE_BODY<<EOF" >> $env:GITHUB_ENV
+        echo $body >> $env:GITHUB_ENV
+        echo "EOF" >> $env:GITHUB_ENV
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         name: IPAndSiteBlocker ${{ github.ref_name }}
-        body: |
-          Automatic release of IPAndSiteBlocker ${{ github.ref_name }}
-
-          ## Installation
-          Download the ZIP file and extract `IPAndSiteBlocker.dll` and `translations` folder to your `csgo/addons/counterstrikesharp/plugins/IPAndSiteBlocker/` directory.
-
-          ## Changes
-          See [CHANGELOG.md](CHANGELOG.md) for details.
+        body: ${{ env.RELEASE_BODY }}
         files: ${{ env.ARCHIVE_NAME }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
