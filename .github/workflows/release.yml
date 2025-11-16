@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v0.2.5'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Build project
+      run: dotnet build -c Release
+
+    - name: Create release archive
+      run: |
+        $version = "${{ github.ref_name }}".Substring(1)
+        $archiveName = "IPAndSiteBlocker_$version.zip"
+        $outputDir = "bin/Release/net8.0"
+
+        # Create zip with plugin files
+        Compress-Archive -Path "$outputDir/IPAndSiteBlocker.dll", "$outputDir/translations" -DestinationPath $archiveName
+
+        # Store archive path for next step
+        echo "ARCHIVE_NAME=$archiveName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: IPAndSiteBlocker ${{ github.ref_name }}
+        body: |
+          Automatic release of IPAndSiteBlocker ${{ github.ref_name }}
+
+          ## Installation
+          Download the ZIP file and extract `IPAndSiteBlocker.dll` and `translations` folder to your `csgo/addons/counterstrikesharp/plugins/IPAndSiteBlocker/` directory.
+
+          ## Changes
+          See [CHANGELOG.md](CHANGELOG.md) for details.
+        files: ${{ env.ARCHIVE_NAME }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
