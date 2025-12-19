@@ -74,53 +74,6 @@ The plugin uses floating versions, so rebuilding with `dotnet build` will automa
 ✅ **Safe Config Updates / Безопасное обновление конфига**: Error handling prevents crashes during config updates / Обработка ошибок предотвращает краши
 ✅ **Admin Immunity / Иммунитет админов**: Admins with proper permissions can bypass blocking / Админы с правами могут обходить блокировку
 
-## API for Developers / API для разработчиков
-
-The plugin includes a standalone API that other developers can use to integrate IP and site blocking functionality into their own CounterStrikeSharp plugins or other .NET applications.
-
-Плагин включает в себя автономный API, который другие разработчики могут использовать для интеграции функциональности блокировки IP и сайтов в свои собственные плагины CounterStrikeSharp или другие .NET приложения.
-
-### Using the API / Использование API
-
-#### Option 1: Reference the DLL / Вариант 1: Ссылка на DLL
-1. Download `IPAndSiteBlockerAPI.dll` from the `API/bin/Release/net8.0/` folder
-   Скачайте `IPAndSiteBlockerAPI.dll` из папки `API/bin/Release/net8.0/`
-
-2. Add reference to your project / Добавьте ссылку в ваш проект
-   ```bash
-   dotnet add reference path/to/IPAndSiteBlockerAPI.dll
-   ```
-
-3. Use in your code / Используйте в коде
-   ```csharp
-   using IPAndSiteBlockerAPI;
-
-   // Configure whitelist / Настройте белый список
-   BlockChecker.Whitelist.Add("google.com");
-   BlockChecker.Whitelist.Add("192.168.1.1");
-
-   // Check if message is blocked / Проверьте, заблокировано ли сообщение
-   bool isBlocked = BlockChecker.IsBlocked("Check this site: http://example.com");
-
-   // Clean player name / Очистите имя игрока
-   string cleanName = BlockChecker.CleanName("Player with badsite.net");
-   ```
-
-#### Option 2: Copy the source code / Вариант 2: Скопируйте исходный код
-Copy `IPAndSiteBlockerAPI.cs` to your project and use it directly.
-Скопируйте `IPAndSiteBlockerAPI.cs` в ваш проект и используйте напрямую.
-
-### API Methods / Методы API
-
-- **IsBlocked(string message)**: Returns true if the message contains blocked content / Возвращает true, если сообщение содержит заблокированный контент
-- **CleanName(string name)**: Removes blocked domains/IPs from player names / Удаляет заблокированные домены/IP из имён игроков
-- **IsWhitelisted(string message)**: Checks if content is in the whitelist / Проверяет, находится ли контент в белом списке
-
-### Building the API / Сборка API
-```bash
-cd API
-dotnet build -c Release
-```
 
 ## Config / Конфигурация
 The configuration file will be automatically generated in `csgo/addons/counterstrikesharp/configs/plugins/IPAndSiteBlocker/IPAndSiteBlocker.json`  
