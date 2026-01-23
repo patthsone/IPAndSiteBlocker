@@ -190,7 +190,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         catch (Exception ex)
         {
             Console.WriteLine($"[IPAndSiteBlocker] {_localization?.Get("critical_error_load", ex.Message) ?? $"Critical error during load: {ex.Message}"}");
-            throw; // Re-throw critical errors
+            throw; 
         }
     }
 
@@ -334,7 +334,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
         name = DomainRegex.Replace(name, "");
 
-        // Optimize domain removal by combining into single regex
+      
         var domainPattern = string.Join("|", CommonDomains.Select(d => Regex.Escape(d)));
         var combinedDomainRegex = new Regex($@"\b\w+({domainPattern})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         name = combinedDomainRegex.Replace(name, "");
