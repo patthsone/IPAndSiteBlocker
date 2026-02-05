@@ -100,7 +100,7 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "0.2.5";
+    public override string ModuleVersion => "0.2.6";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков. (Future-proof: Compatible with all CounterStrikeSharp.API versions)";
 
@@ -124,12 +124,72 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private static readonly string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name ?? "";
     private static readonly string CfgPath = $"{Server.GameDirectory}/csgo/addons/counterstrikesharp/configs/plugins/{AssemblyName}/{AssemblyName}.json";
 
-    private static readonly List<string> CommonDomains = new List<string>
-    {
-        ".com", ".net", ".org", ".info", ".biz", ".us", ".ru",
-        ".online", ".su", ".co", ".io", ".me", ".tv", ".edu",
-        ".xyz", ".site", ".tech", ".dev", ".app", ".cloud"
-    };
+    private string[] _tldSuffixes = Array.Empty<string>();
+    private Regex? _tldDomainRegex;
+    private string _defaultName = "Player";
+
+    private static readonly string DefaultDomainsCfgContent =
+@"
+*.pw
+*.r
+*.com
+*.net
+*.org
+*.ru
+*.ua
+*.kz
+*.by
+*.info
+*.biz
+*.io
+*.gg
+*.tv
+*.site
+*.xyz
+*.online
+*.pro
+*.club
+*.vip
+*.me
+*.cc
+*.cn
+*.de
+*.uk
+*.pl
+*.fr
+*.eu
+*.us
+*.top
+*.fun
+*.shop
+*.su
+*.ro
+*.cz
+*.sk
+*.hu
+*.bg
+*.rs
+*.hr
+*.si
+*.lt
+*.lv
+*.ee
+*.fi
+*.se
+*.no
+*.dk
+*.nl
+*.be
+*.ch
+*.at
+*.it
+*.es
+*.pt
+*.gr
+*.tr
+
+""DefaultName"" ""Player""
+";
 
     public void OnConfigParsed(SiteAndIPBlockerConfig config)
     {
@@ -164,6 +224,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     {
         try
         {
+            EnsureAndLoadDomainsCfg();
+
             _cachedLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.LogPath);
             _cachedBlockedDomainsLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
 
@@ -192,6 +254,142 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             Console.WriteLine($"[IPAndSiteBlocker] {_localization?.Get("critical_error_load", ex.Message) ?? $"Critical error during load: {ex.Message}"}");
             throw; 
         }
+    }
+
+    private void EnsureAndLoadDomainsCfg()
+    {
+        try
+        {
+            var cfgDir = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp", "configs", "plugins", AssemblyName);
+            Directory.CreateDirectory(cfgDir);
+
+            var domainsCfgPath = Path.Combine(cfgDir, "domains.cfg");
+            if (!File.Exists(domainsCfgPath))
+            {
+                File.WriteAllText(domainsCfgPath, DefaultDomainsCfgContent);
+            }
+
+            var lines = File.ReadAllLines(domainsCfgPath);
+            ParseDomainsCfg(lines, out var suffixes, out var defaultName);
+
+            var newRegex = BuildTldDomainRegex(suffixes);
+            _tldSuffixes = suffixes;
+            _tldDomainRegex = newRegex;
+            _defaultName = SanitizeDefaultName(defaultName, newRegex);
+        }
+        catch (Exception ex)
+        {
+            LogMessageAsync($"[domains.cfg] Failed to load: {ex.Message}");
+            _tldSuffixes = Array.Empty<string>();
+            _tldDomainRegex = null;
+            _defaultName = "Player";
+        }
+    }
+
+    private static void ParseDomainsCfg(IEnumerable<string> lines, out string[] suffixes, out string defaultName)
+    {
+        var result = new List<string>();
+        defaultName = "Player";
+
+        foreach (var rawLine in lines)
+        {
+            var line = StripLineComments(rawLine).Trim();
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            if (line.StartsWith('"'))
+            {
+                var m = Regex.Match(line, "^\\s*\"(?<key>[^\"]+)\"\\s+\"(?<value>[^\"]*)\"", RegexOptions.CultureInvariant);
+                if (m.Success)
+                {
+                    var key = m.Groups["key"].Value.Trim();
+                    var value = m.Groups["value"].Value;
+                    if (key.Equals("DefaultName", StringComparison.OrdinalIgnoreCase))
+                        defaultName = value;
+                }
+
+                continue;
+            }
+
+            var token = line;
+            if (token.StartsWith("*.", StringComparison.Ordinal))
+                token = token[1..];
+
+            token = token.Trim();
+            token = token.TrimStart('*');
+            token = token.Trim();
+
+            if (!token.StartsWith(".", StringComparison.Ordinal))
+                token = "." + token.TrimStart('.');
+
+            token = token.ToLowerInvariant();
+            if (token.Length >= 2)
+                result.Add(token);
+        }
+
+        suffixes = result
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(s => s.Length)
+            .ToArray();
+    }
+
+    private static string StripLineComments(string line)
+    {
+        if (string.IsNullOrEmpty(line))
+            return string.Empty;
+
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length - 1; i++)
+        {
+            var c = line[i];
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (!inQuotes && line[i] == '/' && line[i + 1] == '/')
+                return line[..i];
+        }
+
+        var trimmed = line.TrimStart();
+        if (trimmed.StartsWith('#') || trimmed.StartsWith(';'))
+            return string.Empty;
+
+        return line;
+    }
+
+    private static Regex? BuildTldDomainRegex(string[] suffixes)
+    {
+        if (suffixes.Length == 0)
+            return null;
+
+        var alternation = string.Join("|", suffixes.Select(Regex.Escape));
+        return new Regex($@"\b[\w-]+(?:{alternation})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    }
+
+    private static string SanitizeDefaultName(string candidate, Regex? tldRegex)
+    {
+        var name = candidate ?? string.Empty;
+        name = UrlRegex.Replace(name, "");
+        name = IpRegex.Replace(name, "");
+        name = DomainRegex.Replace(name, "");
+        if (tldRegex != null)
+            name = tldRegex.Replace(name, "");
+
+        name = name.Trim();
+        if (name.Length < 2)
+            return "Player";
+
+        return name;
+    }
+
+    private string GetFallbackName()
+    {
+        var baseName = string.IsNullOrWhiteSpace(_defaultName) ? "Player" : _defaultName.Trim();
+        if (baseName.Length < 2)
+            baseName = "Player";
+        return baseName;
     }
 
     private string GetApiVersion()
@@ -304,18 +502,16 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             }
         }
 
-        foreach (var domain in CommonDomains)
+        var tldRegex = _tldDomainRegex;
+        if (tldRegex != null)
         {
-            if (message.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0)
+            var nakedDomainMatches = tldRegex.Matches(message);
+            foreach (Match match in nakedDomainMatches)
             {
-                var nakedDomainMatches = Regex.Matches(message, $@"\b\w+{Regex.Escape(domain)}\b", RegexOptions.IgnoreCase);
-                foreach (Match match in nakedDomainMatches)
+                if (!IsWhitelisted(match.Value))
                 {
-                    if (!IsWhitelisted(match.Value))
-                    {
-                        LogBlockedDomain(match.Value, "NakedDomain");
-                        return true;
-                    }
+                    LogBlockedDomain(match.Value, "NakedDomain");
+                    return true;
                 }
             }
         }
@@ -326,7 +522,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private string CleanName(string name)
     {
         if (string.IsNullOrEmpty(name))
-            return "Player";
+            return GetFallbackName();
 
         name = UrlRegex.Replace(name, "");
 
@@ -334,15 +530,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
         name = DomainRegex.Replace(name, "");
 
-      
-        var domainPattern = string.Join("|", CommonDomains.Select(d => Regex.Escape(d)));
-        var combinedDomainRegex = new Regex($@"\b\w+({domainPattern})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        name = combinedDomainRegex.Replace(name, "");
+        var tldRegex = _tldDomainRegex;
+        if (tldRegex != null)
+            name = tldRegex.Replace(name, "");
 
         name = name.Trim();
 
         if (string.IsNullOrEmpty(name) || name.Length < 2)
-            name = "Player" + Random.Shared.Next(1000, 9999);
+            name = GetFallbackName();
 
         return name;
     }
@@ -601,7 +796,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             
             if (string.IsNullOrEmpty(cleanedName) || cleanedName == originalName)
             {
-                cleanedName = "Player" + Random.Shared.Next(1000, 9999);
+                cleanedName = GetFallbackName();
             }
             
             try

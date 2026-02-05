@@ -1,9 +1,10 @@
-# Build results
 bin/
 obj/
 out/
+**/publish/
 
-# Visual Studio / Rider
+compile.bat
+
 .vs/
 .vscode/
 .idea/
@@ -12,36 +13,29 @@ out/
 *.userosscache
 *.sln.docstates
 
-# NuGet
 *.nupkg
 *.snupkg
 packages/
 .nuget/
 
-# Build artifacts
 *.dll
 *.pdb
 *.exe
 !CounterStrikeSharp.API.dll
 
-# Logs
 *.log
 
-# OS Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Temporary files
 *.tmp
 *.temp
 *~
 
-# JetBrains Rider
 .idea/
 *.sln.iml
 
-# User-specific files
 *.rsuser
 *.suo
 *.user
