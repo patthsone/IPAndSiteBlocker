@@ -1,3 +1,4 @@
+![GitHub all releases](https://img.shields.io/github/downloads/patthsone/IPAndSiteBlocker/total?style=for-the-badge)
 ## IPAndSiteBlocker
 Blocks IP addresses and websites in **chat** and **player names** for Counter-Strike 2 servers running CounterStrikeSharp.  
 Блокирует IP‑адреса и сайты в **чате** и **никах** игроков на сервере Counter‑Strike 2 (CounterStrikeSharp).
