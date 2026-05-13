@@ -100,7 +100,7 @@ public class SiteAndIPBlockerConfig : BasePluginConfig
 public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig>
 {
     public override string ModuleName => "IPAndSiteBlocker";
-    public override string ModuleVersion => "0.2.6";
+    public override string ModuleVersion => "0.2.7";
     public override string ModuleAuthor => "PattHs and Luxecs2.ru";
     public override string ModuleDescription => "Блокировка сайтов и IP-адресов в чате + имена игроков. (Future-proof: Compatible with all CounterStrikeSharp.API versions)";
 
@@ -108,7 +108,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
     private Localization? _localization;
 
     private static readonly Regex UrlRegex = new(@"\b(?:https?|ftp)://[^\s/$.?#].[^\s]*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex IpRegex = new(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled);
+    private static readonly Regex IpRegex = new(@"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", RegexOptions.Compiled);
     private static readonly Regex DomainRegex = new(@"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly ConcurrentDictionary<string, bool> _blockingCache = new();
@@ -226,8 +226,8 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         {
             EnsureAndLoadDomainsCfg();
 
-            _cachedLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.LogPath);
-            _cachedBlockedDomainsLogPath = Path.Combine(Server.GameDirectory, "csgo", Config.BlockedDomainsLog);
+            _cachedLogPath = GetResolvedPath(Config.LogPath);
+            _cachedBlockedDomainsLogPath = GetResolvedPath(Config.BlockedDomainsLog);
 
             LogMessageAsync($"IPAndSiteBlocker v{ModuleVersion} loading...");
             LogMessageAsync($"CounterStrikeSharp API: {GetApiVersion()}");
@@ -254,6 +254,17 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             Console.WriteLine($"[IPAndSiteBlocker] {_localization?.Get("critical_error_load", ex.Message) ?? $"Critical error during load: {ex.Message}"}");
             throw; 
         }
+    }
+
+    private string GetResolvedPath(string configPath)
+    {
+        if (string.IsNullOrWhiteSpace(configPath))
+            return string.Empty;
+            
+        if (Path.IsPathRooted(configPath))
+            return configPath;
+            
+        return Path.Combine(Server.GameDirectory, "csgo", configPath);
     }
 
     private void EnsureAndLoadDomainsCfg()
@@ -339,9 +350,24 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             return string.Empty;
 
         bool inQuotes = false;
+        bool escapeNext = false;
+        
         for (int i = 0; i < line.Length - 1; i++)
         {
             var c = line[i];
+            
+            if (escapeNext)
+            {
+                escapeNext = false;
+                continue;
+            }
+            
+            if (c == '\\')
+            {
+                escapeNext = true;
+                continue;
+            }
+            
             if (c == '"')
             {
                 inQuotes = !inQuotes;
@@ -420,9 +446,13 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
     public override void Unload(bool hotReload)
     {
-        _logCancellationTokenSource.Cancel();
-        _logSemaphore.Dispose();
+        _logCancellationTokenSource?.Cancel();
+        
+        _cacheCleanupTimer?.Change(Timeout.Infinite, Timeout.Infinite);
         _cacheCleanupTimer?.Dispose();
+        
+        _logCancellationTokenSource?.Dispose();
+        _logSemaphore?.Dispose();
     }
 
     private static readonly Dictionary<string, char> ColorMap = new Dictionary<string, char>
@@ -464,14 +494,19 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
 
         bool isBlocked = IsBlocked(message);
         
-        if (_blockingCache.Count < 1000)
-            _blockingCache.TryAdd(message, isBlocked);
+        _blockingCache.TryAdd(message, isBlocked);
         
         return isBlocked;
     }
 
     private bool IsBlocked(string message)
     {
+        if (string.IsNullOrEmpty(message))
+            return false;
+            
+        if (!message.Contains('.') && !message.Contains(':') && !message.Contains('/'))
+            return false;
+
         var urlMatches = UrlRegex.Matches(message);
         foreach (Match match in urlMatches)
         {
@@ -525,9 +560,7 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             return GetFallbackName();
 
         name = UrlRegex.Replace(name, "");
-
         name = IpRegex.Replace(name, "");
-
         name = DomainRegex.Replace(name, "");
 
         var tldRegex = _tldDomainRegex;
@@ -550,8 +583,12 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         string lowerCaseMessage = message.ToLowerInvariant();
 
         return Config.Whitelist.Any(whitelistedItem => 
-            lowerCaseMessage.Equals(whitelistedItem.ToLowerInvariant()) ||
-            lowerCaseMessage.Contains(whitelistedItem.ToLowerInvariant()));
+        {
+            string lowerWhitelist = whitelistedItem.ToLowerInvariant();
+            return lowerCaseMessage.Equals(lowerWhitelist) ||
+                   lowerCaseMessage.EndsWith(lowerWhitelist) ||
+                   lowerCaseMessage.StartsWith(lowerWhitelist);
+        });
     }
 
     private HookResult OnPlayerChat(CCSPlayerController? player, CommandInfo message)
@@ -728,7 +765,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             {
                 try
                 {
-                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    if (player.UserId.HasValue && player.UserId.Value != -1)
+                    {
+                        NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    }
+                    else
+                    {
+                        NativeAPI.IssueServerCommand($"kick #{player.Slot} \"{newName}\"");
+                    }
                     LogMessageAsync(_localization?.Get("kicked_player", GetPlayerIdentifier(player), newName) ?? $"Kicked player {GetPlayerIdentifier(player)} for banned name: {newName}");
                 }
                 catch (Exception ex)
@@ -769,7 +813,14 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
             {
                 try
                 {
-                    NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    if (player.UserId.HasValue && player.UserId.Value != -1)
+                    {
+                        NativeAPI.IssueServerCommand($"kickid {player.UserId}");
+                    }
+                    else
+                    {
+                        NativeAPI.IssueServerCommand($"kick #{player.Slot} \"{playerName}\"");
+                    }
                     LogMessageAsync(_localization?.Get("kicked_player", GetPlayerIdentifier(player), playerName) ?? $"Kicked player {GetPlayerIdentifier(player)} for banned name: {playerName}");
                 }
                 catch (Exception ex)
@@ -902,20 +953,20 @@ public class SiteAndIPBlocker : BasePlugin, IPluginConfig<SiteAndIPBlockerConfig
         }
     }
 
-    private async void LogMessageAsync(string message)
+    private Task LogMessageAsync(string message)
     {
-        try
+        return Task.Run(async () =>
         {
-            await _logSemaphore.WaitAsync();
-            _logQueue.Enqueue($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
-        }
-        catch
-        {
-        }
-        finally
-        {
-            _logSemaphore.Release();
-        }
+            try
+            {
+                await _logSemaphore.WaitAsync();
+                _logQueue.Enqueue($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
+            }
+            finally
+            {
+                _logSemaphore.Release();
+            }
+        });
     }
 
     private async Task ProcessLogQueueAsync()
