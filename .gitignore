@@ -3,7 +3,7 @@ obj/
 out/
 **/publish/
 
-compile.bat
+*compile.bat
 
 .vs/
 .vscode/
@@ -21,7 +21,7 @@ packages/
 *.dll
 *.pdb
 *.exe
-CounterStrikeSharp.API.dll
+*CounterStrikeSharp.API.dll
 
 *.log
 
