@@ -1,0 +1,23 @@
+{
+  "block_message": "{darkred}Blocked: Sending IP addresses or websites is not allowed.",
+  "rename_message": "{darkred}Your name contains a blocked IP address or website. It will be renamed.",
+  "plugin_loaded": "IPAndSiteBlocker loaded successfully!",
+  "chat_listeners_registered": "Chat listeners registered successfully.",
+  "config_updated": "Config updated for V{0}.",
+  "error_updating_config": "Error updating config: {0}",
+  "critical_error_load": "Critical error during load: {0}",
+  "warning_chat_listeners": "Warning: Failed to register chat listeners: {0}",
+  "blocked_message_log": "Blocked message from {0}: {1}",
+  "kicked_player": "Kicked player {0} for banned name: {1}",
+  "renamed_player": "Renamed player {0} from '{1}' to '{2}'",
+  "error_kicking_player": "Error kicking player: {0}",
+  "error_scheduling_rename": "Error scheduling rename: {0}",
+  "error_renaming_player": "Error renaming player: {0}",
+  "critical_error_rename": "Critical error in RenamePlayer: {0}",
+  "warning_setstatechanged": "Warning: SetStateChanged failed (API change?): {0}",
+  "error_checking_player": "Error checking player in {0}: {1}",
+  "error_event": "Error in {0} event: {1}",
+  "error_delayed_name_check": "Error in delayed name check: {0}",
+  "warning_admin_permission": "Warning: Admin permission check failed (API change?): {0}",
+  "warning_chat_message": "Warning: Failed to send chat message: {0}"
+}
