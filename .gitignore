@@ -12,7 +12,7 @@ compile.bat
 *.suo
 *.userosscache
 *.sln.docstates
-
+*compile
 *.nupkg
 *.snupkg
 packages/
@@ -21,7 +21,7 @@ packages/
 *.dll
 *.pdb
 *.exe
-!CounterStrikeSharp.API.dll
+CounterStrikeSharp.API.dll
 
 *.log
 

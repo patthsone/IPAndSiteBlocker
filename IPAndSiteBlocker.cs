@@ -154,7 +154,11 @@ public sealed class IPAndSiteBlocker : BasePlugin, IPluginConfig<IPAndSiteBlocke
     private static readonly string ModuleDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty;
     private static readonly string AssemblyName = Assembly.GetExecutingAssembly().GetName().Name ?? "IPAndSiteBlocker";
 
+<<<<<<< Updated upstream
     private static readonly Regex UrlRegex = new(@"\b(?:(?:https?|ftp)://|www\.)[^\s<>""']+", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+=======
+    private static readonly Regex UrlRegex = new(@"\b(?:(?:https?|ftp):\/\/|www\.)[^\s<>\"']+", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+>>>>>>> Stashed changes
     private static readonly Regex IpRegex = new(@"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex DomainRegex = new(@"(?<![\w.-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?![\w.-])", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
